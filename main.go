@@ -4,15 +4,24 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync/atomic"
 )
 
 func main() {
+
+	apiCfg := apiConfig{
+		fileServerHits: atomic.Int32{},
+	}
+
 	mux := http.NewServeMux()
 
-	fs := http.FileServer(http.Dir("./app"))
-	mux.Handle("/", fs)
+	fsHandleHandler := apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir("./app"))))
+	mux.Handle("/app/", fsHandleHandler)
 
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("POST /reset", apiCfg.handlerReset)
+
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
