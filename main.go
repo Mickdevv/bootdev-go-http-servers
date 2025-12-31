@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 
 	ApiConfig "github.com/Mickdevv/bootdev-go-http-servers/api/apiConfig"
+	"github.com/Mickdevv/bootdev-go-http-servers/api/chirp"
+	"github.com/Mickdevv/bootdev-go-http-servers/api/readiness"
 )
 
 func main() {
@@ -23,11 +25,8 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.HandlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
 
-	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("content-type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	mux.HandleFunc("GET /api/healthz", readiness.HandlerReadiness)
+	mux.HandleFunc("POST /api/validate_chirp", chirp.HandlerValidateChirp)
 
 	server := &http.Server{
 		Addr:    ":8080",
