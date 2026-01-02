@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+
+	"github.com/Mickdevv/bootdev-go-http-servers/internal/database"
 )
 
 type ApiConfig struct {
 	FileServerHits atomic.Int32
+	DB             *database.Queries
 }
 
 func (cfg *ApiConfig) HandlerMetrics(w http.ResponseWriter, r *http.Request) {

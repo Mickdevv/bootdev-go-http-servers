@@ -1,20 +1,35 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
+
+	_ "github.com/lib/pq"
 
 	ApiConfig "github.com/Mickdevv/bootdev-go-http-servers/api/apiConfig"
 	"github.com/Mickdevv/bootdev-go-http-servers/api/chirp"
 	"github.com/Mickdevv/bootdev-go-http-servers/api/readiness"
+	"github.com/Mickdevv/bootdev-go-http-servers/internal/database"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	dbConn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal("Error connecting to the database: %s", err)
+	}
+	dbQueries := database.New(dbConn)
+
 	apiCfg := ApiConfig.ApiConfig{
 		FileServerHits: atomic.Int32{},
+		DB:             dbQueries,
 	}
 
 	mux := http.NewServeMux()
