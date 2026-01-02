@@ -43,6 +43,7 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", readiness.HandlerReadiness)
 	mux.HandleFunc("POST /api/validate_chirp", chirp.HandlerValidateChirp)
 
+	mux.HandleFunc("POST /api/users", apiCfg.HandlerCreateUser)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
