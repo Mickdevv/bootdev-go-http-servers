@@ -1,9 +1,9 @@
 -- +goose Up
 CREATE TABLE users(
-id uuid primary key,
+	id UUID primary key unique,
 	created_at timestamp not null,
 	updated_at timestamp not null,
-	email text not null
+	email text not null unique
 );
 
 -- +goose Down

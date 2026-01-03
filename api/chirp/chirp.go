@@ -9,6 +9,8 @@ import (
 )
 
 func HandlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	type parameters struct {
 		Body string `json:"body"`
 	}
@@ -30,13 +32,13 @@ func HandlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chirp.Body = replaceProfanity(chirp.Body)
-	respBody := validateChirpResponse{Valid: true, Body: replaceProfanity(chirp.Body)}
+	chirp.Body = ReplaceProfanity(chirp.Body)
+	respBody := validateChirpResponse{Valid: true, Body: ReplaceProfanity(chirp.Body)}
 	json_response.RespondWithJSON(w, http.StatusOK, respBody)
 
 }
 
-func replaceProfanity(s string) string {
+func ReplaceProfanity(s string) string {
 	profanities := []string{"kerfuffle", "sharbert", "fornax"}
 
 	returnString := s
