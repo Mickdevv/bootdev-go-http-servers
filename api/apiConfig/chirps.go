@@ -6,6 +6,7 @@ import (
 
 	"github.com/Mickdevv/bootdev-go-http-servers/api/chirp"
 	"github.com/Mickdevv/bootdev-go-http-servers/api/json_response"
+	"github.com/Mickdevv/bootdev-go-http-servers/internal/auth"
 	"github.com/Mickdevv/bootdev-go-http-servers/internal/database"
 	"github.com/Mickdevv/bootdev-go-http-servers/models"
 	"github.com/google/uuid"
@@ -65,14 +66,24 @@ func (cfg *ApiConfig) HandlerGetAllChirps(w http.ResponseWriter, r *http.Request
 func (cfg *ApiConfig) HandlerCreateChirp(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Authorization error: ", err)
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "User not authenticated", err)
+		return
+	}
+
 	type parameters struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		json_response.RespondWithError(w, http.StatusInternalServerError, "Could not decode json payload", err)
 		return
@@ -81,7 +92,7 @@ func (cfg *ApiConfig) HandlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	params.Body = chirp.ReplaceProfanity(params.Body)
 
 	chirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
-		UserID: params.UserId,
+		UserID: userId,
 		Body:   params.Body,
 	})
 	if err != nil {
@@ -91,7 +102,7 @@ func (cfg *ApiConfig) HandlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 	json_response.RespondWithJSON(w, http.StatusCreated, models.Chirp{
 		Id:         chirp.ID,
-		User_id:    chirp.UserID,
+		User_id:    userId,
 		Updated_at: chirp.UpdatedAt,
 		Created_at: chirp.CreatedAt,
 		Body:       chirp.Body,

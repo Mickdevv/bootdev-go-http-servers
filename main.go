@@ -30,6 +30,7 @@ func main() {
 	apiCfg := ApiConfig.ApiConfig{
 		FileServerHits: atomic.Int32{},
 		DB:             dbQueries,
+		JWTSecret:      os.Getenv("JWT_SECRET"),
 	}
 
 	mux := http.NewServeMux()
@@ -48,6 +49,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps/{id}", apiCfg.HandlerGetChirp)
 
 	mux.HandleFunc("POST /api/users", apiCfg.HandlerCreateUser)
+	mux.HandleFunc("POST /api/login", apiCfg.HandlerLogin)
 	mux.HandleFunc("POST /admin/reset_users", apiCfg.HandlerResetUsers)
 
 	server := &http.Server{
