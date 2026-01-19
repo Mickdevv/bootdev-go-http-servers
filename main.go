@@ -50,6 +50,8 @@ func main() {
 
 	mux.HandleFunc("POST /api/users", apiCfg.HandlerCreateUser)
 	mux.HandleFunc("POST /api/login", apiCfg.HandlerLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.HandlerRefreshToken)
+	mux.HandleFunc("POST /api/revoke", apiCfg.HandlerRevokeToken)
 	mux.HandleFunc("POST /admin/reset_users", apiCfg.HandlerResetUsers)
 
 	server := &http.Server{

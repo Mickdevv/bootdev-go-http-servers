@@ -13,6 +13,71 @@ import (
 	"github.com/joho/godotenv"
 )
 
+func (cfg *ApiConfig) HandlerRevokeToken(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+	}
+
+	refresh_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Authorization error: ", err)
+		return
+	}
+
+	refresh_token_from_database, err := cfg.DB.GetRefreshTokenByTokenId(r.Context(), refresh_token)
+
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error retrieving refresh token from database", err)
+		return
+	}
+	if refresh_token_from_database.ExpiresAt.Unix() > time.Now().Unix() || refresh_token_from_database.RevokedAt.Valid {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Refresh token invalid", nil)
+		return
+	}
+
+	revoked_token, err := cfg.DB.RevokeRefreshToken(r.Context(), refresh_token_from_database.Token)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error retrieving token from database", err)
+		return
+	}
+	_ = revoked_token
+
+	json_response.RespondWithJSON(w, http.StatusNoContent, response{})
+}
+func (cfg *ApiConfig) HandlerRefreshToken(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Token string `json:"token"`
+	}
+
+	refresh_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Authorization error: ", err)
+		return
+	}
+
+	refresh_token_from_database, err := cfg.DB.GetRefreshTokenByTokenId(r.Context(), refresh_token)
+
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Error retrieving refresh token from database", err)
+		return
+	}
+
+	if refresh_token_from_database.ExpiresAt.Unix() > time.Now().Unix() || refresh_token_from_database.RevokedAt.Time.Unix() >= time.Now().Unix() {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Refresh token invalid", nil)
+		return
+	}
+
+	token, err := auth.MakeJWT(refresh_token_from_database.UserID, cfg.JWTSecret, time.Duration(3600))
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Unauthorized: ", err)
+		return
+	}
+
+	res := response{
+		Token: token,
+	}
+	json_response.RespondWithJSON(w, http.StatusOK, res)
+}
+
 func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email            string `json:"email"`
@@ -20,11 +85,12 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 	type response struct {
-		ID        string `json:"id"`
-		Email     string `json:"email"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Token     string `json:"token"`
+		ID           string `json:"id"`
+		Email        string `json:"email"`
+		CreatedAt    string `json:"created_at"`
+		UpdatedAt    string `json:"updated_at"`
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -32,6 +98,7 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&params)
 	if err != nil {
 		json_response.RespondWithError(w, http.StatusInternalServerError, "Error unmarshaling login form", err)
+		return
 	}
 
 	user, err := cfg.DB.GetUserForAuthByEmail(r.Context(), params.Email)
@@ -60,12 +127,25 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refresh_token, err := auth.MakeRefreshToken()
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error creating refresh token", err)
+		return
+	}
+
+	refresh_token_from_database, err := cfg.DB.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{UserID: user.ID, Token: refresh_token})
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error adding refresh token to database", err)
+		return
+	}
+
 	res := response{
-		ID:        user.ID.String(),
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt.Local().String(),
-		UpdatedAt: user.UpdatedAt.Local().String(),
-		Token:     token,
+		ID:           user.ID.String(),
+		Email:        user.Email,
+		CreatedAt:    user.CreatedAt.Local().String(),
+		UpdatedAt:    user.UpdatedAt.Local().String(),
+		Token:        token,
+		RefreshToken: refresh_token_from_database.Token,
 	}
 	json_response.RespondWithJSON(w, http.StatusOK, res)
 }
