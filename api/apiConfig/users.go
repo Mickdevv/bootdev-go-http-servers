@@ -10,8 +10,76 @@ import (
 	"github.com/Mickdevv/bootdev-go-http-servers/internal/auth"
 	"github.com/Mickdevv/bootdev-go-http-servers/internal/database"
 	"github.com/Mickdevv/bootdev-go-http-servers/models"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
+
+func (cfg *ApiConfig) HandlerPolkaWebhooks(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := auth.GetPolkaKey(r.Header)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Api key error", err)
+		return
+	}
+
+	if apiKey != cfg.PolkaApiKey {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Invalid api key", nil)
+		return
+
+	}
+
+	defer r.Body.Close()
+
+	// token, err := auth.GetBearerToken(r.Header)
+	// if err != nil {
+	// 	json_response.RespondWithError(w, http.StatusUnauthorized, "Authorization error: ", err)
+	// 	return
+	// }
+	//
+	// userId, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	// if err != nil {
+	// 	json_response.RespondWithError(w, http.StatusUnauthorized, "User not authenticated", err)
+	// 	return
+	// }
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	type response struct {
+		User models.User
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error unmarshaling user email", err)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.WriteHeader(204)
+	}
+
+	_, err = cfg.DB.GetUserById(r.Context(), params.Data.UserID)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusNotFound, "User not found", err)
+		return
+	}
+
+	_, err = cfg.DB.UpgradeUserChirpyRed(r.Context(), database.UpgradeUserChirpyRedParams{
+		ID:          params.Data.UserID,
+		IsChirpyRed: true,
+	})
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error updating user", err)
+		return
+	}
+
+	w.WriteHeader(204)
+}
 
 func (cfg *ApiConfig) HandlerRevokeToken(w http.ResponseWriter, r *http.Request) {
 	type response struct {
@@ -43,6 +111,7 @@ func (cfg *ApiConfig) HandlerRevokeToken(w http.ResponseWriter, r *http.Request)
 
 	json_response.RespondWithJSON(w, http.StatusNoContent, response{})
 }
+
 func (cfg *ApiConfig) HandlerRefreshToken(w http.ResponseWriter, r *http.Request) {
 	type response struct {
 		Token string `json:"token"`
@@ -91,6 +160,7 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt    string `json:"updated_at"`
 		Token        string `json:"token"`
 		RefreshToken string `json:"refresh_token"`
+		IsChirpyRed  bool   `json:"is_chirpy_red"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -146,6 +216,7 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:    user.UpdatedAt.Local().String(),
 		Token:        token,
 		RefreshToken: refresh_token_from_database.Token,
+		IsChirpyRed:  user.IsChirpyRed,
 	}
 	json_response.RespondWithJSON(w, http.StatusOK, res)
 }
@@ -168,6 +239,63 @@ func (cfg *ApiConfig) HandlerResetUsers(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
+func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "Authorization error: ", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusUnauthorized, "User not authenticated", err)
+		return
+	}
+
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	type response struct {
+		User models.User
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error unmarshaling user email", err)
+		return
+	}
+
+	hashed_password, err := auth.HashPassword(params.Password)
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error hashing password", err)
+		return
+	}
+	params.Password = hashed_password
+
+	user, err := cfg.DB.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:             userId,
+		Email:          params.Email,
+		HashedPassword: params.Password,
+	})
+	if err != nil {
+		json_response.RespondWithError(w, http.StatusInternalServerError, "Error updating user", err)
+		return
+	}
+
+	json_response.RespondWithJSON(w, http.StatusOK, models.User{
+		ID:          user.ID,
+		Email:       user.Email,
+		Created_at:  user.CreatedAt,
+		Updated_at:  user.UpdatedAt,
+		IsChirpyRed: user.IsChirpyRed,
+	})
+
+}
 func (cfg *ApiConfig) HandlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email    string `json:"email"`

@@ -14,6 +14,18 @@ import (
 	"github.com/google/uuid"
 )
 
+func GetPolkaKey(headers http.Header) (string, error) {
+
+	bearerString := strings.Split(headers.Get("Authorization"), " ")
+	fmt.Println(headers)
+	if bearerString[0] == "" || len(bearerString) != 2 {
+		return "", errors.New("No authentication method detected")
+	}
+
+	token := bearerString[1]
+
+	return token, nil
+}
 func GetBearerToken(headers http.Header) (string, error) {
 	bearerString := strings.Split(headers.Get("Authorization"), " ")
 	if bearerString[0] == "" || len(bearerString) != 2 {

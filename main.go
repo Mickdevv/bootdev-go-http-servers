@@ -31,6 +31,7 @@ func main() {
 		FileServerHits: atomic.Int32{},
 		DB:             dbQueries,
 		JWTSecret:      os.Getenv("JWT_SECRET"),
+		PolkaApiKey:    os.Getenv("POLKA_KEY"),
 	}
 
 	mux := http.NewServeMux()
@@ -47,8 +48,12 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.HandlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.HandlerGetAllChirps)
 	mux.HandleFunc("GET /api/chirps/{id}", apiCfg.HandlerGetChirp)
+	mux.HandleFunc("DELETE /api/chirps/{id}", apiCfg.HandlerDeleteChirp)
+
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.HandlerPolkaWebhooks)
 
 	mux.HandleFunc("POST /api/users", apiCfg.HandlerCreateUser)
+	mux.HandleFunc("PUT /api/users", apiCfg.HandlerUpdateUser)
 	mux.HandleFunc("POST /api/login", apiCfg.HandlerLogin)
 	mux.HandleFunc("POST /api/refresh", apiCfg.HandlerRefreshToken)
 	mux.HandleFunc("POST /api/revoke", apiCfg.HandlerRevokeToken)

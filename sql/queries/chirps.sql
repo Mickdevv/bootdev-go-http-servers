@@ -11,6 +11,9 @@ RETURNING *;
 
 -- name: GetChirp :one
 SELECT * FROM chirps WHERE id = $1; 
+
 -- name: GetAllChirps :many
 SELECT * FROM chirps; 
 
+-- name: DeleteChirp :one
+DELETE FROM chirps WHERE id = $1 RETURNING *;
