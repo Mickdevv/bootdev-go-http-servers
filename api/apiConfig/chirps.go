@@ -3,6 +3,7 @@ package ApiConfig
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 
 	"github.com/Mickdevv/bootdev-go-http-servers/api/chirp"
 	"github.com/Mickdevv/bootdev-go-http-servers/api/json_response"
@@ -51,7 +52,14 @@ func (cfg *ApiConfig) HandlerGetAllChirps(w http.ResponseWriter, r *http.Request
 		json_response.RespondWithError(w, http.StatusInternalServerError, "Error getting chirps", err)
 		return
 	}
+
+	author_id := r.URL.Query().Get("author_id")
+	sort_1 := r.URL.Query().Get("sort")
+
 	for _, c := range chirps {
+		if author_id != "" && c.UserID.String() != author_id {
+			continue
+		}
 		response = append(response, models.Chirp{
 			Created_at: c.CreatedAt,
 			Updated_at: c.UpdatedAt,
@@ -60,6 +68,13 @@ func (cfg *ApiConfig) HandlerGetAllChirps(w http.ResponseWriter, r *http.Request
 			User_id:    c.UserID,
 		})
 	}
+
+	if sort_1 == "" || sort_1 == "asc" {
+		sort.Slice(response, func(i, j int) bool { return response[i].Created_at.Before(response[j].Created_at) })
+	} else {
+		sort.Slice(response, func(i, j int) bool { return response[i].Created_at.After(response[j].Created_at) })
+	}
+
 	json_response.RespondWithJSON(w, http.StatusOK, response)
 }
 
